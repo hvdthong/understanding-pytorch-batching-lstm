@@ -1,4 +1,3 @@
-
 # coding: utf-8
 
 # In[28]:
@@ -20,6 +19,7 @@ from torch.utils.data import Dataset, DataLoader
 
 random.seed(1)
 
+
 ###
 # Thanks to http://pytorch.org/tutorials/intermediate/char_rnn_classification_tutorial.html
 # for these code snippets
@@ -27,11 +27,13 @@ random.seed(1)
 
 def findFiles(path): return glob.glob(path)
 
+
 import unicodedata
 import string
 
 all_letters = string.ascii_letters + " .,;'"
 n_letters = len(all_letters)
+
 
 # Turn a Unicode string to plain ASCII, thanks to http://stackoverflow.com/a/518232/2809427
 def unicodeToAscii(s):
@@ -41,14 +43,17 @@ def unicodeToAscii(s):
         and c in all_letters
     )
 
+
 # Build the category_lines dictionary, a list of names per language
 category_lines = {}
 all_categories = []
+
 
 # Read a file and split into lines
 def readLines(filename):
     lines = open(filename, encoding='utf-8').read().strip().split('\n')
     return [unicodeToAscii(line) for line in lines]
+
 
 data = list()
 
@@ -61,11 +66,9 @@ for filename in findFiles('data/names/*.txt'):
 
 data = random.sample(data, len(data))
 
-
 TRAIN_BATCH_SIZE = 32
 VALIDATION_BATCH_SIZE = 1
 TEST_BATCH_SIZE = 1
-
 
 # In[29]:
 
@@ -75,6 +78,8 @@ We are going to use the Dataset interface provided
 by pytorch wich is really convenient when it comes to
 batching our data
 """
+
+
 class PaddedTensorDataset(Dataset):
     """Dataset wrapping data, target and length tensors.
 
@@ -109,6 +114,7 @@ class PaddedTensorDataset(Dataset):
 A couple useful method
 """
 
+
 def vectorize_data(data, to_ix):
     return [[to_ix[tok] if tok in to_ix else to_ix['UNK'] for tok in seq] for seq, y in data]  # Figure 1
 
@@ -135,6 +141,7 @@ def sort_batch(batch, ys, lengths):
     targ_tensor = ys[perm_idx]
     return seq_tensor.transpose(0, 1), targ_tensor, seq_lengths
 
+
 def train_dev_test_split(data):
     train_ratio = int(len(data) * 0.8)  # 80% of dataset
     train = data[:train_ratio]
@@ -142,6 +149,7 @@ def train_dev_test_split(data):
     valid_ratio = int(len(train) * 0.8)  # 20% of train set
     dev = train[valid_ratio:]
     return train, dev, test
+
 
 def build_vocab_tag_sets(data):
     vocab = set()
@@ -152,12 +160,14 @@ def build_vocab_tag_sets(data):
         tags.add(name[1])
     return vocab, tags
 
+
 def make_to_ix(data, to_ix=None):
     if to_ix is None:
         to_ix = dict()
     for c in data:
         to_ix[c] = len(to_ix)
     return to_ix
+
 
 def apply(model, criterion, batch, targets, lengths):
     pred = model(torch.autograd.Variable(batch), lengths.cpu().numpy())
@@ -171,8 +181,11 @@ def apply(model, criterion, batch, targets, lengths):
 """
 Training and evaluation methods
 """
+
+
 def train_model(model, optimizer, train, dev, x_to_ix, y_to_ix):
-    criterion = nn.NLLLoss(size_average=False)
+    # criterion = nn.NLLLoss(size_average=False)
+    criterion = torch.nn.CrossEntropyLoss()
     for epoch in range(20):
         print("Epoch {}".format(epoch))
         y_true = list()
@@ -190,9 +203,14 @@ def train_model(model, optimizer, train, dev, x_to_ix, y_to_ix):
             total_loss += loss
         acc = accuracy_score(y_true, y_pred)
         val_loss, val_acc = evaluate_validation_set(model, dev, x_to_ix, y_to_ix, criterion)
-        print("Train loss: {} - acc: {} \nValidation loss: {} - acc: {}".format(list(total_loss.data.float())[0]/len(train), acc,
-                                                                                val_loss, val_acc))
+        # print("Train loss: {} - acc: {} \nValidation loss: {} - acc: {}".format(
+        #     list(total_loss.data.float())[0] / len(train), acc,
+        #     val_loss, val_acc))
+        print("Train loss: {} - acc: {} \nValidation loss: {} - acc: {}".format(
+            total_loss / len(train), acc,
+            val_loss, val_acc))
     return model
+
 
 def evaluate_validation_set(model, devset, x_to_ix, y_to_ix, criterion):
     y_true = list()
@@ -206,7 +224,9 @@ def evaluate_validation_set(model, devset, x_to_ix, y_to_ix, criterion):
         y_pred += list(pred_idx.data.int())
         total_loss += loss
     acc = accuracy_score(y_true, y_pred)
-    return list(total_loss.data.float())[0]/len(devset), acc
+    # return list(total_loss.data.float())[0] / len(devset), acc
+    return total_loss / len(devset), acc
+
 
 def evaluate_test_set(model, test, x_to_ix, y_to_ix):
     y_true = list()
@@ -232,6 +252,7 @@ def evaluate_test_set(model, test, x_to_ix, y_to_ix):
 Our Recurrent Model
 """
 
+
 class NamesRNN(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, output_size):
         super(NamesRNN, self).__init__()
@@ -246,8 +267,10 @@ class NamesRNN(nn.Module):
         self.softmax = nn.LogSoftmax()
 
     def init_hidden(self, batch):
-        return (autograd.Variable(torch.randn(2, batch, self.hidden_dim)),
-                autograd.Variable(torch.randn(2, batch, self.hidden_dim)))
+        # return (autograd.Variable(torch.randn(2, batch, self.hidden_dim)),
+        #         autograd.Variable(torch.randn(2, batch, self.hidden_dim)))
+        return (autograd.Variable(torch.randn(1, batch, self.hidden_dim)),
+                autograd.Variable(torch.randn(1, batch, self.hidden_dim)))
 
     def _get_lstm_features(self, names, lengths):
         self.hidden = self.init_hidden(names.size(-1))
@@ -257,10 +280,10 @@ class NamesRNN(nn.Module):
         lstm_out, _ = pad_packed_sequence(packed_output)  # Figure 7
         lstm_out = torch.transpose(lstm_out, 0, 1)
         lstm_out = torch.transpose(lstm_out, 1, 2)
-        lstm_out = F.tanh(lstm_out)  # Figure 8
+        lstm_out = torch.tanh(lstm_out)  # Figure 8
         lstm_out, indices = F.max_pool1d(lstm_out, lstm_out.size(2), return_indices=True)  # Figure 9
         lstm_out = lstm_out.squeeze(2)
-        lstm_out = F.tanh(lstm_out)
+        lstm_out = torch.tanh(lstm_out)
         lstm_feats = self.fully_connected_layer(lstm_out)
         output = self.softmax(lstm_feats)  # Figure 10
         return output
@@ -275,6 +298,8 @@ class NamesRNN(nn.Module):
 """
 Method for debugging purpose
 """
+
+
 def filter_for_visual_example(train):
     new_t = list()
     for x in train:
@@ -312,7 +337,8 @@ chars_to_idx = {
     'PAD': 0,
     'UNK': 1
 }
-chars_to_idx = make_to_ix(sorted(list(vocab)), chars_to_idx) # Really important to sort it if you save your model for later!
+chars_to_idx = make_to_ix(sorted(list(vocab)),
+                          chars_to_idx)  # Really important to sort it if you save your model for later!
 tags_to_idx = make_to_ix(sorted(list(tags)))
 
 model = NamesRNN(len(chars_to_idx), 128, 32, len(tags))
@@ -320,12 +346,10 @@ optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-4)
 
 model = train_model(model, optimizer, train, dev, chars_to_idx, tags_to_idx)
 
-
 # In[ ]:
 
 
 evaluate_test_set(model, test, chars_to_idx, tags_to_idx)
-
 
 # I try to make the figures as close as possible as the representation of pytorch while using the PyCharm Debugger. I think it will offer a better understanding of what is actually going on with all the tensors
 
@@ -388,11 +412,4 @@ evaluate_test_set(model, test, chars_to_idx, tags_to_idx)
 # In[ ]:
 
 
-
-
-
 # In[ ]:
-
-
-
-
